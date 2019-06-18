@@ -242,12 +242,9 @@ class conditional_random_field:
         else:
             return b + math.log(1 + (math.e ** (a - b)))
 
-    """函数名称：Forward
-       函数功能：前向Viterbi，计算句子S的所有可能的词性序列得分之和 -1 <= k <= sentence_length
-       函数返回：句子的得分之后"""
-    def Forward(self, sentence_length, sentence_unigram_feature_id, k, t):
-        if k == -1 and t == "START":
-            return 0.0
+    def get_sentence_forward_score(self, sentence_unigram_feature_id):
+        sentence_length = len(sentence_unigram_feature_id)
+        sentence_forward_score = []
         dict_current_score = {}
         dict_left_score = {}
         for tag_i in self.actual_tags:  #初始化alpha(0, t)
@@ -256,10 +253,9 @@ class conditional_random_field:
             tag_left_score = 0.0
             score = unigram_score + bigram_score + tag_left_score  #log
             dict_current_score[tag_i] = score
-        if k == 0:
-            return dict_current_score[t]
+        sentence_forward_score.append(dict_current_score)
         dict_left_score = dict_current_score  #对应着i = 0位置的所有的tag得分
-        for i in range(1, k):  #从句子的第1个词开始往后算（实际上应该是第2个词）
+        for i in range(1, sentence_length):  #从句子的第1个词开始往后算（实际上应该是第2个词）
             dict_current_score = {}
             for tag_i in self.actual_tags:  #对于某一个具体的tag，求alpha(k, t)
                 score = 0.0
@@ -276,51 +272,34 @@ class conditional_random_field:
                     score = self.log_sum(score, tmpscore)
                 dict_current_score[tag_i] = score
             dict_left_score = dict_current_score
-        if k == sentence_length:
-            add_times = 0
-            ti = "STOP"
-            for tag_left in dict_left_score.keys():
-                add_times += 1
-                bigram_score = self.Score([self.bigram_feature_id[tag_left]], ti)  #STOP那一列只有bigram
-                tag_left_score = dict_left_score[tag_left]
-                tmpscore = bigram_score + tag_left_score
-                if add_times == 1:
-                    score = tmpscore
-                    continue
-                score = self.log_sum(score, tmpscore)
-            return score
-        #计算最后一步
-        score = 0.0
-        unigram_score = self.Score(sentence_unigram_feature_id[k], t)
+            sentence_forward_score.append(dict_current_score)
         add_times = 0
+        ti = "STOP"
         for tag_left in dict_left_score.keys():
             add_times += 1
-            bigram_score = self.Score([self.bigram_feature_id[tag_left]], t)
+            bigram_score = self.Score([self.bigram_feature_id[tag_left]], ti)  #STOP那一列只有bigram
             tag_left_score = dict_left_score[tag_left]
-            tmpscore = unigram_score + bigram_score + tag_left_score  #是否存在问题？
+            tmpscore = bigram_score + tag_left_score
             if add_times == 1:
                 score = tmpscore
                 continue
             score = self.log_sum(score, tmpscore)
-        return score
+        sentence_forward_score.append(score)
+        return sentence_forward_score
 
-    """函数名称：Backward
-       函数功能：后向Viterbi，计算句子S的所有可能的词性序列之和 -1 <= k <= sentence_length
-       函数返回：句子的后向得分之和"""
-    def Backward(self, sentence_length, sentence_unigram_feature_id, k, t):
+    def get_sentence_backward_score(self, sentence_unigram_feature_id):
+        sentence_length = len(sentence_unigram_feature_id)
+        sentence_backward_score = []
         dict_right_score = {}
         dict_current_score = {}
         score = 0.0
-        if k == sentence_length:
-            return 0.0
         #初始化beta(len - 1, tag)
         for tag_i in self.actual_tags:
             bigram_score = self.Score([self.bigram_feature_id[tag_i]], "STOP")
             dict_current_score[tag_i] = bigram_score + 0.0
-        if k == sentence_length - 1:
-            return dict_current_score[t]
+        sentence_backward_score.append(dict_current_score)
         dict_right_score = dict_current_score
-        for i in list(reversed(range(k + 1, sentence_length - 1))):  #从sentence_length - 2 到 k + 1
+        for i in list(reversed(range(0, sentence_length - 1))):  #从sentence_length - 2 到 k + 1
             dict_current_score = {}
             for tag_i in self.actual_tags:
                 score = 0.0
@@ -337,13 +316,14 @@ class conditional_random_field:
                     score = self.log_sum(score, tmpscore)
                 dict_current_score[tag_i] = score
             dict_right_score = dict_current_score
+            sentence_backward_score.append(dict_current_score)
         #计算最后一步
         score = 0.0
-        tag_i = t
+        tag_i = "START"
         add_times = 0
         for tag_right in dict_right_score:
             add_times += 1
-            unigram_score = self.Score(sentence_unigram_feature_id[k + 1], tag_right)
+            unigram_score = self.Score(sentence_unigram_feature_id[0], tag_right)
             bigram_score = self.Score([self.bigram_feature_id[tag_i]], tag_right)
             tag_right_score = dict_right_score[tag_right]
             tmpscore = unigram_score + bigram_score + tag_right_score
@@ -351,7 +331,8 @@ class conditional_random_field:
                 score = tmpscore
                 continue
             score = self.log_sum(score, tmpscore)
-        return score
+        sentence_backward_score.append(score)
+        return sentence_backward_score
 
     """函数名称：update_gradient
        函数功能：更新梯度gradient"""
@@ -370,6 +351,8 @@ class conditional_random_field:
             bigram_feature_id = self.get_feature_id(bigram_feature)
             sentence_unigram_feature_id.append(unigram_feature_id)
             sentence_bigram_feature_id.append(bigram_feature_id)
+        sentence_forward_score = self.get_sentence_forward_score(sentence_unigram_feature_id)  #获取整个句子的Forward的得分
+        sentence_backward_score = self.get_sentence_backward_score(sentence_unigram_feature_id)  #获取整个句子的Backward的得分
         for i in range(sentence_len):  #g = g + f(S, Y)
             ti = sentence.tag[i]
             unigram_feature_id = sentence_unigram_feature_id[i]
@@ -378,34 +361,13 @@ class conditional_random_field:
                 self.g[self.feature_length * self.tags[ti] + index] += 1
             for index in bigram_feature_id:
                 self.g[self.feature_length * self.tags[ti] + index] += 1
-        dinominator = self.Forward(sentence_len, sentence_unigram_feature_id, sentence_len, "STOP")  #得到分母Z(S)
-        """dinominator2 = self.Backward(sentence_len, sentence_unigram_feature_id, -1, "START")
-        dinominator3 = 0.0
-        add_times = 0
-        pos = 2
-        for tag in self.actual_tags:
-            add_times += 1
-            tmpscore = self.Forward(sentence_len, sentence_unigram_feature_id, pos, tag) + self.Backward(sentence_len, sentence_unigram_feature_id, pos, tag)
-            if add_times == 1:
-                dinominator3 = tmpscore
-                continue
-            dinominator3 = self.log_sum(dinominator3, tmpscore)
-        print dinominator, dinominator2, dinominator3
-        if math.fabs(dinominator3 - dinominator) >= 1e-10:  #如果a(sentence_length, STOP) != for all t | a(k, t) * b(k, t)
-            pass
-            #exit()
-        if math.fabs(dinominator - dinominator2) >= 1e-10:
-            print "a not equal b ", dinominator, dinominator2, dinominator3
-            #exit()
-        else:
-            print "a ---> end == b ---> start"""
-        ti_left_tag = "START"
+        dinominator = sentence_forward_score[sentence_len]  #得到分母Z(S)
         i = 0
-        forward_score = self.Forward(sentence_len, sentence_unigram_feature_id, i - 1, ti_left_tag)
+        forward_score = 0.0
         unigram_feature_id_i = sentence_unigram_feature_id[i]
-        bigram_feature_id_i = [self.bigram_feature_id[ti_left_tag]]
+        bigram_feature_id_i = [self.bigram_feature_id["START"]]
         for ti in self.actual_tags:
-            backward_score = self.Backward(sentence_len, sentence_unigram_feature_id, i, ti)
+            backward_score = sentence_backward_score[sentence_len - 1 - i][ti]
             score = self.Score(unigram_feature_id_i, ti)
             score += self.Score(bigram_feature_id_i, ti)
             numerator = forward_score + score + backward_score
@@ -418,11 +380,10 @@ class conditional_random_field:
             for index in bigram_feature_id_i:
                 self.g[self.feature_length * self.tags[ti] + index] -= p
         for i in range(1, sentence_len):  # g = g - \sum_{i = 1}^{n} p * f
-            max_tagi, max_tagi_left, max_p = "", "", 0.0
             for ti in self.actual_tags:
-                backward_score = self.Backward(sentence_len, sentence_unigram_feature_id, i, ti)
+                backward_score = sentence_backward_score[sentence_len - 1 - i][ti]
                 for ti_left_tag in self.actual_tags:
-                    forward_score = self.Forward(sentence_len, sentence_unigram_feature_id, i - 1, ti_left_tag)
+                    forward_score = sentence_forward_score[i - 1][ti_left_tag]
                     unigram_feature_id_i = sentence_unigram_feature_id[i]
                     bigram_feature_id_i = [self.bigram_feature_id[ti_left_tag]]
                     score = self.Score(unigram_feature_id_i, ti)
@@ -436,10 +397,6 @@ class conditional_random_field:
                     for bigram_id in bigram_feature_id_i:
                         index = self.feature_length * self.actual_tags[ti] + bigram_id
                         self.g[index] -= p
-            """if math.fabs(sum(test_p) - 1.0) >= 1e-10:
-                print "i = ", i, " max_tagi = ", max_tagi, "max_tagi_left = ", max_tagi_left
-                print sum(test_p), max(test_p)
-                #print test_p"""
 
     def update_weight(self):
         self.w = [x + y for x, y in zip(self.w, self.g)]
@@ -448,144 +405,30 @@ class conditional_random_field:
         max_tag_list = []
         sentence_len = len(sentence.word)
         sentence_unigram_feature_id = []
-        sentence_bigram_feature_id = []
         for i in range(sentence_len):  #得到整个句子的unigram特征id，sentence_unigram_feature_id 和 bigram特征id，sentence_bigram_feature_id
-            if i == 0:
-                ti_left_tag = "START"
-            else:
-                ti_left_tag = sentence.tag[i - 1]
             unigram_feature = self.create_unigram_feature(sentence, i)
             unigram_feature_id = self.get_feature_id(unigram_feature)
-            bigram_feature = self.create_bigram_feature(ti_left_tag)
-            bigram_feature_id = self.get_feature_id(bigram_feature)
             sentence_unigram_feature_id.append(unigram_feature_id)
-            sentence_bigram_feature_id.append(bigram_feature_id)
-        dinominator = self.Forward(sentence_len, sentence_unigram_feature_id, sentence_len, "STOP")  #得到分母Z(S)
-        ti_left_tag = "START"
-        i = 0
-        forward_score = self.Forward(sentence_len, sentence_unigram_feature_id, i - 1, ti_left_tag)
-        unigram_feature_id_i = sentence_unigram_feature_id[i]
-        bigram_feature_id_i = [self.bigram_feature_id[ti_left_tag]]
-        for ti in self.actual_tags:
-            backward_score = self.Backward(sentence_len, sentence_unigram_feature_id, i, ti)
-            score = self.Score(unigram_feature_id_i, ti)
-            score += self.Score(bigram_feature_id_i, ti)
-            numerator = forward_score + score + backward_score
-            p = math.e ** (numerator - dinominator)
+        sentence_forward_score = self.get_sentence_forward_score(sentence_unigram_feature_id)  #获取整个句子的Forward的得分
+        sentence_backward_score = self.get_sentence_backward_score(sentence_unigram_feature_id)  #获取整个句子的Backward的得分
         for i in range(1, sentence_len):  # g = g - \sum_{i = 1}^{n} p * f
-            test_p = []
-            max_tagi, max_tagi_left, max_p = "", "", 0.0
+            max_tagi, max_tagi_left, max_numerator = "", "", 0.0
             for ti in self.actual_tags:
-                backward_score = self.Backward(sentence_len, sentence_unigram_feature_id, i, ti)
+                backward_score = sentence_backward_score[sentence_len - 1 - i][ti]
                 for ti_left_tag in self.actual_tags:
-                    forward_score = self.Forward(sentence_len, sentence_unigram_feature_id, i - 1, ti_left_tag)
+                    forward_score = sentence_forward_score[i - 1][ti_left_tag]
                     unigram_feature_id_i = sentence_unigram_feature_id[i]
                     bigram_feature_id_i = [self.bigram_feature_id[ti_left_tag]]
                     score = self.Score(unigram_feature_id_i, ti)
                     score += self.Score(bigram_feature_id_i, ti)
                     numerator = forward_score + score + backward_score
-                    p = math.e ** (numerator - dinominator)
-                    test_p.append(p)
-                    if p > max_p:
-                        max_p = p
+                    if numerator > max_numerator:
+                        max_numerator = numerator
                         max_tagi = ti
                         max_tagi_left = ti_left_tag
             max_tag_list.append(max_tagi_left)
         max_tag_list.append(max_tagi)
         return max_tag_list
-
-    def max_tag(self, sentence, pos):
-        maxnum = float("-Inf")
-        tag = "NULL"
-        for t in self.actual_tags:
-            fv = self.create_feature(sentence, pos)
-            f_id = self.get_feature_id(fv)
-            offset = self.actual_tags[t]
-            tempnum = self.dot(f_id, offset)
-            if(tempnum > (maxnum + 1e-10)):
-                maxnum = tempnum
-                tag = t
-        return tag
-
-    def max_tag_sequence(self, sentence):
-        list_sentence_tag = []  #用来保存路径
-        tag_sequence = []
-        last_score = dict()
-        current_score = dict()
-        last_tag = dict()
-        current_tag = dict()
-        maxscore = float("-Inf")
-        maxtag = "NULL"
-        sentence_length = len(sentence.word)
-        sentence_unigram_feature_id = []
-        #获取整个句子的unigram和bigram
-        for i in range(sentence_length):
-            unigram_feature = self.create_unigram_feature(sentence, i)  #获取句子当前位置i的unigram
-            unigram_feature_id = self.get_feature_id(unigram_feature)
-            sentence_unigram_feature_id.append(unigram_feature_id)
-        #第一个词
-        for t in self.actual_tags:
-            tempscore = self.Score(sentence_unigram_feature_id[0], t) + self.Score([self.bigram_feature_id["START"]], t)
-            current_score[t] = tempscore
-            current_tag[t] = "START"
-        list_sentence_tag.append(current_tag)
-        #如果只有一个词
-        if(sentence_length == 1):
-            maxscore = float("-Inf")
-            maxtag = "NULL"
-            for tag in current_score.keys():
-                c_score = current_score[tag]
-                if(c_score > maxscore):
-                    maxscore = c_score
-                    maxtag = tag
-            return maxtag
-        ith_max_tag = maxtag
-        last_score = current_score
-        current_score = dict()
-        last_tag = current_tag
-        current_tag = dict()
-        #后几个词
-        for pos in range(1, sentence_length):
-            maxscore = float("-Inf")
-            maxtag = "NULL"
-            current_score = dict()
-            current_tag = dict()
-            for tag in self.actual_tags:
-                maxscore = float("-Inf")
-                maxtag = "NULL"
-                unigram_score = self.Score(sentence_unigram_feature_id[i], tag)
-                for t in last_score.keys():
-                    bigram_score = self.Score([self.bigram_feature_id[t]], tag)
-                    tempscore = unigram_score + bigram_score
-                    if(tempscore > maxscore):
-                        maxscore = tempscore
-                        maxtag = t
-                current_score[tag] = maxscore
-                current_tag[tag] = maxtag
-            #找到上一个词最大的tag
-            maxscore = float("-Inf")
-            maxtag = "NULL"
-            for tag in current_score.keys():
-                if(current_score[tag] > maxscore):
-                    maxscore = current_score[tag]
-                    maxtag = tag
-            #tag_sequence.append(current_tag[maxtag])
-            last_score = current_score
-            last_tag = current_tag
-            ith_max_tag = maxtag
-            list_sentence_tag.append(current_tag)
-        tag_sequence.append(ith_max_tag)
-        list_sentence_tag.reverse()
-        #print list_sentence_tag[-2]
-        for i in range(len(list_sentence_tag) - 1):
-            ith_max_tag = list_sentence_tag[i][ith_max_tag]
-            tag_sequence.append(ith_max_tag)
-        tag_sequence.reverse()
-        #print len(sentence.word)
-        #print len(tag_sequence)
-        #print tag_sequence
-        #print sentence.tag
-        return tag_sequence
 
     """函数名称：perceptron_online_training
        函数功能：对global linear model进行训练
@@ -651,35 +494,6 @@ class conditional_random_field:
        accuracy = 1.0 * c / dataset.total_word_count
        print(dataset.name + "\tprecision is " + str(c) + " / " + str(dataset.total_word_count) + " = " + str(accuracy))
        return iterator, c, dataset.total_word_count, accuracy
-
-    """函数名称：evaluate
-       函数功能：根据开发集dev，测试global linear model训练得到的成果
-                 输出正确率
-       函数返回：迭代次数，正确的tag的个数，所有的word的个数，准确率"""
-    def evaluate(self, dataset, iterator):
-       c = 0  #记录标注正确的tag数量
-       for s in dataset.sentences:
-           max_tag_sequence = self.max_tag_sequence(s)  #使用v进行评估，返回得分最高的tag序列
-           print s.tag  #, max_tag_sequence
-           correct_tag_sequence = s.tag
-           for i in range(len(max_tag_sequence)):  #比较每一个tag，是否相等？
-               if(max_tag_sequence[i] == correct_tag_sequence[i]):
-                   c += 1
-       accuracy = 1.0 * c / dataset.total_word_count
-       print(dataset.name + "\tprecision is " + str(c) + " / " + str(dataset.total_word_count) + " = " + str(accuracy))
-       return iterator, c, dataset.total_word_count, accuracy
-
-    def evaluate_each_word(self, dataset, iterator):
-        c = 0
-        for s in dataset.sentences:
-            for i in range(len(s.word)):
-                tag = self.max_tag(s, i)
-                print s.tag[i], tag
-                if tag == s.tag[i]:
-                    c += 1
-        accuracy = 1.0 * c / dataset.total_word_count
-        print dataset.name + "\tprecision is " + str(c) + " / " + str(dataset.total_word_count) + " = " + str(accuracy)
-        return iterator, c, dataset.total_word_count, accuracy
 
 ################################ main #####################################
 if __name__ == '__main__':

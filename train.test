@@ -1,0 +1,48 @@
+1	中国	_	NR	NR	_	3	nn	_	_
+2	进出口	_	NN	NN	_	3	nn	_	_
+3	银行	_	NN	NN	_	6	conj	_	_
+4	与	_	CC	CC	_	6	cc	_	_
+5	中国	_	NR	NR	_	6	nn	_	_
+6	银行	_	NN	NN	_	7	nsubj	_	_
+7	加强	_	VV	VV	_	0	root	_	_
+8	合作	_	NN	NN	_	7	dobj	_	_
+
+1	新华社	_	NN	NN	_	7	dep	_	_
+2	北京	_	NR	NR	_	7	dep	_	_
+3	十二月	_	NT	NT	_	7	dep	_	_
+4	二十六日	_	NT	NT	_	7	dep	_	_
+5	电	_	NN	NN	_	7	dep	_	_
+6	（	_	PU	PU	_	7	punct	_	_
+7	记者	_	NN	NN	_	0	root	_	_
+8	周根良	_	NR	NR	_	7	dep	_	_
+9	）	_	PU	PU	_	7	punct	_	_
+
+1	（	_	PU	PU	_	2	punct	_	_
+2	完	_	VV	VV	_	0	root	_	_
+3	）	_	PU	PU	_	2	punct	_	_
+
+1	同时	_	AD	AD	_	3	advmod	_	_
+2	将	_	AD	AD	_	3	advmod	_	_
+3	阻止	_	VV	VV	_	0	root	_	_
+4	欠缴	_	VV	VV	_	7	rcmod	_	_
+5	税款	_	NN	NN	_	4	dobj	_	_
+6	的	_	DEC	DEC	_	4	cpm	_	_
+7	纳税人	_	NN	NN	_	3	dobj	_	_
+8	出境	_	VV	VV	_	3	dep	_	_
+9	。	_	PU	PU	_	3	punct	_	_
+
+1	中国	_	NR	NR	_	5	nn	_	_
+2	最大	_	JJ	JJ	_	5	amod	_	_
+3	氨纶丝	_	NN	NN	_	5	nn	_	_
+4	生产	_	NN	NN	_	5	nn	_	_
+5	基地	_	NN	NN	_	8	nsubj	_	_
+6	在	_	P	P	_	8	prep	_	_
+7	连云港	_	NR	NR	_	6	pobj	_	_
+8	建成	_	VV	VV	_	0	root	_	_
+
+1	新华社	_	NN	NN	_	5	dep	_	_
+2	南京	_	NR	NR	_	5	dep	_	_
+3	十二月	_	NT	NT	_	5	dep	_	_
+4	四日	_	NT	NT	_	5	dep	_	_
+5	电	_	NN	NN	_	0	root	_	_
+

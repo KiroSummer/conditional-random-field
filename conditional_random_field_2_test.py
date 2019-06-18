@@ -404,6 +404,7 @@ class conditional_random_field:
         forward_score = self.Forward(sentence_len, sentence_unigram_feature_id, i - 1, ti_left_tag)
         unigram_feature_id_i = sentence_unigram_feature_id[i]
         bigram_feature_id_i = [self.bigram_feature_id[ti_left_tag]]
+        test_p = []
         for ti in self.actual_tags:
             backward_score = self.Backward(sentence_len, sentence_unigram_feature_id, i, ti)
             score = self.Score(unigram_feature_id_i, ti)
@@ -417,6 +418,9 @@ class conditional_random_field:
                 self.g[self.feature_length * self.tags[ti] + index] -= p
             for index in bigram_feature_id_i:
                 self.g[self.feature_length * self.tags[ti] + index] -= p
+            test_p.append(p)
+        print sum(test_p)
+        exit()
         for i in range(1, sentence_len):  # g = g - \sum_{i = 1}^{n} p * f
             max_tagi, max_tagi_left, max_p = "", "", 0.0
             for ti in self.actual_tags:
